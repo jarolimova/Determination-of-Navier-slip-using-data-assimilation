@@ -104,7 +104,7 @@ def weak_formulation(
     stab_v=0.0,
     stab_p=0.0,
     normal_way="facet",
-    linearization_method="newton",
+    picard_weight=0.0,
 ):
     stab = True if stab_v.values()[0] > 0.0 else False
     (u, p, v, q) = FE.split(s)
@@ -189,12 +189,13 @@ def weak_formulation(
         * ds(marks["out"])
     )
 
-    if linearization_method == "picard":
-        J = df.derivative(F, s)
-        F = ufl.replace(F, {s0: s})
-        J = ufl.replace(J, {s0: s})
-    else:  # newton
-        F = ufl.replace(F, {s0: s})
-        J = df.derivative(F, s)
+    J_picard = df.derivative(F, s)
+    F_picard = ufl.replace(F, {s0: s})
+    J_picard = ufl.replace(J_picard, {s0: s})
+    F_newton = ufl.replace(F, {s0: s})
+    J_newton = df.derivative(F_newton, s)
+
+    J = picard_weight * (J_picard - J_newton) + J_newton
+    F = picard_weight * (F_picard - F_newton) + F_newton
 
     return F, J

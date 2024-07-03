@@ -17,8 +17,7 @@ def init_analytic(
     data_folder="data",
     **kwargs,
 ):
-    """analytical profile expression initial guess
-    """
+    """analytical profile expression initial guess"""
     dim = u_in.function_space().element().geometric_dimension()
     if dim != 3:
         raise ValueError(f"Analytic profile implemented only for dim=3 (not {dim})")
@@ -42,15 +41,13 @@ def init_analytic(
 
 
 def init_zero(u_in, **kwargs):
-    """zero initial guess
-    """
+    """zero initial guess"""
     u_in.vector()[:] = 0.0
     return u_in
 
 
 def init_data(u_in, data=None, **kwargs):
-    """data initial guess
-    """
+    """data initial guess"""
     if data is None:
         raise ValueError("No data provided for the init.")
     u_in.vector()[:] = data.vector()
@@ -87,8 +84,8 @@ class AnalyticProfile:
         self.slip_penalty = slip_penalty
 
     @classmethod
-    def from_json(cls, mu, meshname, mesh, slip_penalty):
-        jsonpath = f"data/{meshname}_cuts.json"
+    def from_json(cls, mu, meshname, mesh, slip_penalty, data_folder="data"):
+        jsonpath = os.path.join(data_folder, f"{meshname}_cuts.json")
         with open(jsonpath, "r") as jsnfile:
             bnd_data = json.load(jsnfile)
         radius = bnd_data["in"]["radius"]

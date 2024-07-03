@@ -47,8 +47,9 @@ def get_args():
     )
     parser.add_argument(
         "--picard",
-        action="store_true",
-        help="use picard iterations instead of newton",
+        type=int,
+        default=0,
+        help="for the given number of iterations use picard instead of newton",
     )
     parser.add_argument(
         "--init_with_zero",
@@ -116,7 +117,7 @@ def get_args():
         "--data_folder",
         type=str,
         default="data",
-        help="Location of results folder",
+        help="Location of data folder",
     )
     args = parser.parse_args()
     return args
@@ -134,8 +135,8 @@ def prepare_folder(args):
     if args.beta != 0.0:
         J_foldername += f"_beta{args.beta}"
     nonlinear_solver = args.nonlinear_solver
-    if args.picard:
-        nonlinear_solver += "_picard"
+    if args.picard > 0:
+        nonlinear_solver += f"_picard{args.picard}"
     if args.no_vin and not args.no_theta:
         optional = "only_theta"
     elif args.no_theta and not args.no_vin:

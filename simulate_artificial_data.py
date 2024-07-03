@@ -55,6 +55,12 @@ def get_args():
         default=3.71e-6,
         help="kinematic viscosity (default: 3.71e-6 m^2/s)",
     )
+    parser.add_argument(
+        "--data_folder",
+        type=str,
+        default="data",
+        help="where to save the data",
+    )
     args = parser.parse_args()
     return args
 
@@ -87,7 +93,13 @@ def simulate_flow(
     # Boundary conditions
     in_nitsche = False
     u_in = init_analytic(
-        u_in, velocity=vel, theta=const_theta, mu=mu, gamma=gamma, meshname=meshname
+        u_in,
+        velocity=vel,
+        theta=const_theta,
+        mu=mu,
+        gamma=gamma,
+        meshname=meshname,
+        data_folder=args.data_folder,
     )
     inflow = df.DirichletBC(W.sub(0), u_in, bndry, marks["in"])
     bcs = [] if in_nitsche else [inflow]
@@ -134,8 +146,7 @@ def write_data(velocity, pressure, filepath: str, comm=df.MPI.comm_world):
 
 if __name__ == "__main__":
     args = get_args()
-    datafolder = "data"
-    meshpath = f"{datafolder}/{args.meshname}"
+    meshpath = f"{args.data_folder}/{args.meshname}"
     comm = df.MPI.comm_world
     mesh, bndry, _ = read_mesh(meshpath, comm=comm)
 
@@ -154,7 +165,7 @@ if __name__ == "__main__":
         gamma=args.gamma,
     )
     name = args.name
-    filepath = f"{datafolder}/{args.meshname}/{args.element}/{name}{int(round(args.theta*1000))}"
+    filepath = f"{args.data_folder}/{args.meshname}/{args.element}/{name}{int(round(args.theta*1000))}"
     if args.gamma != 0.25:
         filepath += f"_gamma{args.gamma}"
     write_data(velocity, press, filepath=filepath)

@@ -39,7 +39,7 @@ def forward(
     slip_penalty,
     normal_way="proj",
     nonlinear_solver="snes",
-    linearization_method="newton",
+    picard_weight=0.0,
     init_from_prev=True,
     mu=mu,
     rho=rho,
@@ -68,7 +68,7 @@ def forward(
         stab_v=da.Constant(stab_v, annotate=annotate),
         stab_p=da.Constant(stab_p, annotate=annotate),
         normal_way=normal_way,
-        linearization_method=linearization_method,
+        picard_weight=picard_weight,
     )
     problem = da.NonlinearVariationalProblem(F, s, bcs, Jac)
     solver = da.NonlinearVariationalSolver(problem)
@@ -101,6 +101,9 @@ def eval_cb_post(j, m):
         pp.rename("p", "p")
         uu_file.write(uu, iteration)
         pp_file.write(pp, iteration)
+    if args.picard == iteration:
+        picard_control.update(da.Constant(0.0))
+        print(f"Picard -> Newton (at the end of iteration {iteration})")
     iteration += 1
 
 
@@ -172,6 +175,8 @@ if __name__ == "__main__":
         with df.XDMFFile(f"{foldername}/vin_init.xdmf") as xdmf:
             xdmf.write(u_in)
 
+    picard_weight = da.Constant(1.0 if args.picard > 0 else 0.0)
+
     s = forward(
         theta,
         u_in,
@@ -183,14 +188,14 @@ if __name__ == "__main__":
         slip_penalty,
         normal_way=args.normal,
         nonlinear_solver=args.nonlinear_solver,
-        linearization_method="picard" if args.picard else "newton",
+        picard_weight=picard_weight,
         init_from_prev=not args.init_with_zero,
         annotate=True,
     )
     u, p = FE.split(s, test=False)
 
     analytic_profile = inlet_bc.AnalyticProfile.from_json(
-        mu, args.meshname, mesh, slip_penalty
+        mu, args.meshname, mesh, slip_penalty, data_folder=args.data_folder
     )
     error_functional = ErrorFunctional(
         data, FE.ds, analytic_profile, alpha=args.alpha, beta=args.beta, char_len=0.01
@@ -198,15 +203,14 @@ if __name__ == "__main__":
     J = error_functional.J(u, u_in, theta, velocity_avg)
 
     s_control = da.Control(s)
+    picard_control = da.Control(picard_weight)
     controls = Controls(
         theta if not args.no_theta else None,
         u_in if not args.no_vin else None,
         slip_penalty=slip_penalty,
     )
     m = controls.m
-    Jhat = da.ReducedFunctional(
-        J, m, eval_cb_post=eval_cb_post
-    )
+    Jhat = da.ReducedFunctional(J, m, eval_cb_post=eval_cb_post)
 
     before_optimization_time = time.time()
     # Minimize
@@ -225,6 +229,9 @@ if __name__ == "__main__":
     theta_opt, u_in_opt = controls.extract_values(m_opt)
     if u_in_opt is None:
         u_in_opt = u_in
+    else:
+        with df.HDF5File(comm, f"{foldername}/u_in_opt_h5.h5", "w") as hdf:
+            hdf.write(u_in_opt, "u_in")
     if theta_opt is None:
         theta_opt = theta
     else:
@@ -241,7 +248,7 @@ if __name__ == "__main__":
         slip_penalty,
         normal_way=args.normal,
         nonlinear_solver=args.nonlinear_solver,
-        linearization_method="picard",
+        picard_weight=1.0,
         init_from_prev=not args.init_with_zero,
     )
 
@@ -257,10 +264,8 @@ if __name__ == "__main__":
             xdmf.write(press)
         with df.XDMFFile(f"{foldername}/data.xdmf") as xdmf:
             xdmf.write(data)
-        with df.HDF5File(comm, f"{foldername}/vel_h5.h5", "w") as hdf:
-            hdf.write(vel, "v")
-        with df.HDF5File(comm, f"{foldername}/press_h5.h5", "w") as hdf:
-            hdf.write(press, "p")
+        with df.HDF5File(comm, f"{foldername}/w_opt_h5.h5", "w") as hdf:
+            hdf.write(s_opt, "w")
     end_time = time.time()
 
     print(f"Setup time: {round(before_optimization_time-initial_time, 3)}")

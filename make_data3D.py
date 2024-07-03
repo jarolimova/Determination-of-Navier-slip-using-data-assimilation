@@ -9,6 +9,7 @@ from fem_utils import finite_elements
 from read_mesh import read_mesh
 
 from petsc4py import PETSc
+
 print = PETSc.Sys.Print
 
 df.parameters["std_out_all_processes"] = False
@@ -36,28 +37,42 @@ def get_args():
         default=np.infty,
         help="signal to noise ratio, default: infinity (no noise)",
     )
-    parser.add_argument(
-        "--pressure", action="store_true", help="save pressure"
-    )
+    parser.add_argument("--pressure", action="store_true", help="save pressure")
     parser.add_argument(
         "--gamma",
         type=float,
         default=0.25,
         help="gamma* scaling of the Navier slip bc",
     )
+    parser.add_argument(
+        "--data_folder",
+        type=str,
+        default="data",
+        help="Location of data folder",
+    )
     args = parser.parse_args()
     return args
 
-def make_noise(shape, venc:float=1.5, snr:float=np.infty):
+
+def make_noise(shape, venc: float = 1.5, snr: float = np.infty):
     # adding noise
     np.random.seed(1111)
-    amount_of_noise = venc/snr
-    standard_deviation = 0.45*venc/snr
-    print(f"Amount of noise: {amount_of_noise}, standard deviation: {standard_deviation}")
+    amount_of_noise = venc / snr
+    standard_deviation = 0.45 * venc / snr
+    print(
+        f"Amount of noise: {amount_of_noise}, standard deviation: {standard_deviation}"
+    )
     noise = amount_of_noise * np.random.normal(size=shape, scale=standard_deviation)
     return noise
 
-def add_noise_basic(data, venc: float, snr: float = np.infty, comm=df.MPI.comm_world, function_space=None):
+
+def add_noise_basic(
+    data,
+    venc: float,
+    snr: float = np.infty,
+    comm=df.MPI.comm_world,
+    function_space=None,
+):
     print(f"Adding basic noise with signal to noise ratio {snr}...")
     local_vector = data.vector().get_local()
     local_size = data.vector().local_size()
@@ -67,6 +82,7 @@ def add_noise_basic(data, venc: float, snr: float = np.infty, comm=df.MPI.comm_w
         data.set_allow_extrapolation(True)
         data = df.interpolate(data, function_space)
     return data
+
 
 def write_results(
     data_original,
@@ -94,18 +110,19 @@ def write_results(
         print(f"{name} succesfully saved.")
     return data
 
+
 def estimate_ideal_venc(data_dict):
     linf_norms = []
     for name, velocity, pressure in data_dict.values():
         max_vel = velocity.vector().norm("linf")
-        max_vel = ceil(100*max_vel)*0.01
+        max_vel = ceil(100 * max_vel) * 0.01
         linf_norms.append(max_vel)
     return max(linf_norms)
 
 
 if __name__ == "__main__":
     args = get_args()
-    datafolder = "data"
+    datafolder = args.data_folder
     meshpath = f"{datafolder}/{args.meshname}"
     comm = df.MPI.comm_world
     mesh, bndry, _ = read_mesh(meshpath, comm=comm)
@@ -121,7 +138,7 @@ if __name__ == "__main__":
         mesh_o, bndry_o = mesh, bndry
         meshname_o = args.meshname
 
-    thetas = [0.0, 0.2, 0.5, 0.8, 0.99, 1.0]
+    thetas = [0.0, 0.2, 0.5, 0.8, 1.0]
     elements = [
         "p1p1",
         "mini",
@@ -132,7 +149,7 @@ if __name__ == "__main__":
     FE_o.setup()
     V_o = FE_o.V.collapse()
     P_o = FE_o.P.collapse()
-    
+
     data_dict = dict()
     for theta in thetas:
         velocity = df.Function(V_o)
